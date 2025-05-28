@@ -1,30 +1,684 @@
-body {
-  font-family: Arial, sans-serif;
-  max-width: 600px;
-  margin: 30px auto;
-  padding: 20px;
-  border: 2px solid #007bff;
-  border-radius: 10px;
-  background: #f8f9fa;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ish Vaqti Monitoring Tizimi</title>
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --accent: #4895ef;
+            --danger: #f72585;
+            --success: #4cc9f0;
+            --light: #f8f9fa;
+            --dark: #212529;
+        }
 
-input[type="text"] {
-  width: 100%;
-  padding: 8px;
-  font-size: 16px;
-}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
-button {
-  margin: 5px 5px 5px 0;
-  padding: 10px 20px;
-  font-size: 16px;
-  cursor: pointer;
-}
+        body {
+            background-color: #f5f7fa;
+            color: var(--dark);
+            line-height: 1.6;
+            padding: 20px;
+        }
 
-pre {
-  background: #eee;
-  padding: 15px;
-  border-radius: 8px;
-  max-height: 300px;
-  overflow-y: auto;
-}
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        h1 {
+            color: var(--primary);
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+
+        .panel {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .timer-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .timer-display {
+            font-size: 3.5rem;
+            font-family: monospace;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #3a7bd5;
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #e5177e;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: var(--dark);
+        }
+
+        .btn-success:hover {
+            background-color: #3ab7d8;
+            transform: translateY(-2px);
+        }
+
+        .webcam-container {
+            width: 100%;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        #webcam {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 8px;
+            border: 3px solid var(--accent);
+            display: none;
+        }
+
+        .webcam-active {
+            display: inline-block !important;
+        }
+
+        .captured-photo {
+            max-width: 300px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border: 3px solid var(--success);
+            display: none;
+        }
+
+        .photo-visible {
+            display: inline-block !important;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin: 10px 0;
+        }
+
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .history-table th, .history-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .history-table th {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .history-table tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-present {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-late {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .status-remote {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+
+        .telegram-section {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 5px solid #0088cc;
+        }
+
+        .telegram-section h3 {
+            color: #0088cc;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .timer-display {
+                font-size: 2.5rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Ish Vaqti Monitoring Tizimi</h1>
+        
+        <div class="timer-container">
+            <h2>Ish Vaqti</h2>
+            <div class="timer-display" id="timer">00:00:00</div>
+            <div>
+                <button id="checkInBtn" class="btn btn-primary">Kirish</button>
+                <button id="checkOutBtn" class="btn btn-danger" disabled>Chiqish</button>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Identifikatsiya</h2>
+            <div class="webcam-container">
+                <video id="webcam" autoplay playsinline></video>
+                <div>
+                    <button id="captureBtn" class="btn btn-success" disabled>Suratga olish</button>
+                </div>
+                <img id="capturedPhoto" class="captured-photo" alt="Captured photo">
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Statistika</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Bugungi ish vaqti</h3>
+                    <div class="stat-value" id="todayHours">00:00</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Haftalik ish vaqti</h3>
+                    <div class="stat-value" id="weekHours">00:00</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Kech qolgan</h3>
+                    <div class="stat-value" id="lateDays">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Samaradorlik</h3>
+                    <div class="stat-value" id="productivity">0%</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>Ish tarixi</h2>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Sana</th>
+                        <th>Kirish</th>
+                        <th>Chiqish</th>
+                        <th>Ish vaqti</th>
+                        <th>Holat</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <!-- Tarix yuklanadi -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="panel telegram-section">
+            <h3>Telegram Integratsiyasi</h3>
+            <div class="form-group">
+                <label for="telegramChatId">Telegram Chat ID</label>
+                <input type="text" id="telegramChatId" class="form-control" placeholder="123456789">
+            </div>
+            <button id="connectTelegramBtn" class="btn btn-primary">Telegram bilan ulash</button>
+            <div id="telegramStatus" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Asosiy o'zgaruvchilar
+        let timerInterval;
+        let secondsWorked = 0;
+        let isWorking = false;
+        let webcamStream;
+        let employeeData = {
+            name: "Falonchi Falonchiyev",
+            position: "Dasturchi",
+            telegramChatId: null,
+            workHistory: []
+        };
+
+        // DOM elementlari
+        const timerDisplay = document.getElementById('timer');
+        const checkInBtn = document.getElementById('checkInBtn');
+        const checkOutBtn = document.getElementById('checkOutBtn');
+        const webcam = document.getElementById('webcam');
+        const captureBtn = document.getElementById('captureBtn');
+        const capturedPhoto = document.getElementById('capturedPhoto');
+        const todayHours = document.getElementById('todayHours');
+        const weekHours = document.getElementById('weekHours');
+        const lateDays = document.getElementById('lateDays');
+        const productivity = document.getElementById('productivity');
+        const historyBody = document.getElementById('historyBody');
+        const telegramChatIdInput = document.getElementById('telegramChatId');
+        const connectTelegramBtn = document.getElementById('connectTelegramBtn');
+        const telegramStatus = document.getElementById('telegramStatus');
+
+        // Dastur yuklanganda
+        document.addEventListener('DOMContentLoaded', function() {
+            loadData();
+            updateStats();
+            renderHistory();
+            
+            // Telegram chat ID ni tekshirish
+            if (employeeData.telegramChatId) {
+                telegramChatIdInput.value = employeeData.telegramChatId;
+                telegramStatus.innerHTML = '<span style="color: green;">✅ Telegram ulangan</span>';
+            }
+        });
+
+        // Ma'lumotlarni yuklash
+        function loadData() {
+            const savedData = localStorage.getItem('employeeData');
+            if (savedData) {
+                employeeData = JSON.parse(savedData);
+            }
+        }
+
+        // Ma'lumotlarni saqlash
+        function saveData() {
+            localStorage.setItem('employeeData', JSON.stringify(employeeData));
+        }
+
+        // Vaqtni formatlash
+        function formatTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Qisqa vaqt formatlash (soat:daqiqa)
+        function formatShortTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        }
+
+        // Taymerni yangilash
+        function updateTimer() {
+            secondsWorked++;
+            timerDisplay.textContent = formatTime(secondsWorked);
+        }
+
+        // Kirish tugmasi
+        checkInBtn.addEventListener('click', function() {
+            // Webcamni yoqish
+            startWebcam();
+            
+            // Taymerni boshlash
+            isWorking = true;
+            secondsWorked = 0;
+            timerInterval = setInterval(updateTimer, 1000);
+            
+            // Tugmalarni o'zgartirish
+            checkInBtn.disabled = true;
+            checkOutBtn.disabled = false;
+            captureBtn.disabled = false;
+            
+            // Kirish vaqtini yozish
+            const now = new Date();
+            employeeData.currentSession = {
+                startTime: now,
+                startPhoto: null
+            };
+            
+            // Telegramga xabar yuborish
+            if (employeeData.telegramChatId) {
+                sendTelegramMessage(`🟢 Kirish: ${now.toLocaleTimeString()}`);
+            }
+            
+            saveData();
+        });
+
+        // Chiqish tugmasi
+        checkOutBtn.addEventListener('click', function() {
+            // Webcamni o'chirish
+            stopWebcam();
+            
+            // Taymerni to'xtatish
+            isWorking = false;
+            clearInterval(timerInterval);
+            
+            // Tugmalarni o'zgartirish
+            checkInBtn.disabled = false;
+            checkOutBtn.disabled = true;
+            captureBtn.disabled = true;
+            
+            // Chiqish vaqtini yozish
+            const now = new Date();
+            if (employeeData.currentSession) {
+                const session = {
+                    date: new Date(employeeData.currentSession.startTime).toLocaleDateString(),
+                    startTime: employeeData.currentSession.startTime.toLocaleTimeString(),
+                    endTime: now.toLocaleTimeString(),
+                    duration: secondsWorked,
+                    status: getSessionStatus(employeeData.currentSession.startTime),
+                    photo: capturedPhoto.src || null
+                };
+                
+                employeeData.workHistory.unshift(session);
+                delete employeeData.currentSession;
+                
+                // Telegramga xabar yuborish
+                if (employeeData.telegramChatId) {
+                    sendTelegramMessage(`🔴 Chiqish: ${now.toLocaleTimeString()}\nIsh vaqti: ${formatTime(secondsWorked)}`);
+                }
+                
+                saveData();
+                updateStats();
+                renderHistory();
+                
+                // Suratni tozalash
+                capturedPhoto.src = '';
+                capturedPhoto.classList.remove('photo-visible');
+            }
+        });
+
+        // Webcamni ishga tushirish
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                webcam.srcObject = webcamStream;
+                webcam.classList.add('webcam-active');
+            } catch (err) {
+                console.error("Webcam error: ", err);
+                alert("Webcamni ishga tushirishda xatolik yuz berdi!");
+            }
+        }
+
+        // Webcamni o'chirish
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcam.srcObject = null;
+                webcam.classList.remove('webcam-active');
+            }
+        }
+
+        // Suratga olish tugmasi
+        captureBtn.addEventListener('click', function() {
+            const canvas = document.createElement('canvas');
+            canvas.width = webcam.videoWidth;
+            canvas.height = webcam.videoHeight;
+            canvas.getContext('2d').drawImage(webcam, 0, 0, canvas.width, canvas.height);
+            
+            capturedPhoto.src = canvas.toDataURL('image/png');
+            capturedPhoto.classList.add('photo-visible');
+            
+            if (employeeData.currentSession) {
+                employeeData.currentSession.startPhoto = capturedPhoto.src;
+                saveData();
+            }
+        });
+
+        // Sessiya holatini aniqlash
+        function getSessionStatus(startTime) {
+            const startHour = startTime.getHours();
+            const startMinute = startTime.getMinutes();
+            
+            if (startHour > 9 || (startHour === 9 && startMinute > 0)) {
+                return 'late';
+            } else if (startHour < 8) {
+                return 'early';
+            } else {
+                return 'on-time';
+            }
+        }
+
+        // Statistikalarni yangilash
+        function updateStats() {
+            // Bugungi ish vaqti
+            if (isWorking) {
+                todayHours.textContent = formatShortTime(secondsWorked);
+            } else {
+                todayHours.textContent = '00:00';
+            }
+            
+            // Haftalik ish vaqti
+            const weekSeconds = employeeData.workHistory
+                .filter(entry => isThisWeek(new Date(entry.date)))
+                .reduce((total, entry) => total + entry.duration, 0);
+            
+            weekHours.textContent = formatShortTime(weekSeconds);
+            
+            // Kech qolgan kunlar
+            const lateCount = employeeData.workHistory
+                .filter(entry => entry.status === 'late').length;
+            
+            lateDays.textContent = lateCount;
+            
+            // Samaradorlik (80% - standart)
+            const productivityValue = 80 + Math.floor(Math.random() * 10);
+            productivity.textContent = `${productivityValue}%`;
+        }
+
+        // Tarixni ko'rsatish
+        function renderHistory() {
+            historyBody.innerHTML = '';
+            
+            employeeData.workHistory.forEach(entry => {
+                const row = document.createElement('tr');
+                
+                row.innerHTML = `
+                    <td>${entry.date}</td>
+                    <td>${entry.startTime}</td>
+                    <td>${entry.endTime}</td>
+                    <td>${formatShortTime(entry.duration)}</td>
+                    <td>
+                        <span class="status-badge ${getStatusClass(entry.status)}">
+                            ${getStatusText(entry.status)}
+                        </span>
+                    </td>
+                `;
+                
+                historyBody.appendChild(row);
+            });
+        }
+
+        // Holat klassini olish
+        function getStatusClass(status) {
+            switch (status) {
+                case 'late': return 'status-late';
+                case 'early': return 'status-remote';
+                default: return 'status-present';
+            }
+        }
+
+        // Holat matnini olish
+        function getStatusText(status) {
+            switch (status) {
+                case 'late': return 'Kech qolgan';
+                case 'early': return 'Erta ketgan';
+                default: return 'Normal';
+            }
+        }
+
+        // Bu haftaligini tekshirish
+        function isThisWeek(date) {
+            const today = new Date();
+            const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay()));
+            const lastDayOfWeek = new Date(firstDayOfWeek);
+            lastDayOfWeek.setDate(lastDayOfWeek.getDate() + 6);
+            
+            return date >= firstDayOfWeek && date <= lastDayOfWeek;
+        }
+
+        // Telegram bilan ulash
+        connectTelegramBtn.addEventListener('click', function() {
+            const chatId = telegramChatIdInput.value.trim();
+            
+            if (chatId && !isNaN(chatId)) {
+                employeeData.telegramChatId = chatId;
+                saveData();
+                telegramStatus.innerHTML = '<span style="color: green;">✅ Telegram ulangan</span>';
+                
+                // Test xabarini yuborish
+                sendTelegramMessage("✅ Sizning hisobingiz muvaffaqiyatli ulandi!\n" +
+                                   "Endi siz ish vaqtlaringiz haqida bildirishnomalar olasiz.");
+            } else {
+                telegramStatus.innerHTML = '<span style="color: red;">❌ Noto'g'ri Chat ID</span>';
+            }
+        });
+
+        // Telegramga xabar yuborish (simulyatsiya)
+        function sendTelegramMessage(message) {
+            // Haqiqiy loyihada bu backendga so'rov bo'ladi
+            console.log(`Telegramga xabar yuborildi (${employeeData.telegramChatId}): ${message}`);
+            
+            // Simulyatsiya uchun UI da ko'rsatish
+            telegramStatus.innerHTML += `<div style="margin-top: 5px; color: #666;">Xabar yuborildi: ${message.substring(0, 30)}...</div>`;
+        }
+
+        // Demo ma'lumotlarni yaratish (agar bo'sh bo'lsa)
+        if (employeeData.workHistory.length === 0) {
+            const now = new Date();
+            const demoData = [];
+            
+            for (let i = 0; i < 14; i++) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                
+                const startHour = 8 + Math.floor(Math.random() * 3);
+                const startMinute = Math.floor(Math.random() * 60);
+                const duration = 6 * 3600 + Math.floor(Math.random() * 2 * 3600);
+                
+                const startTime = new Date(date);
+                startTime.setHours(startHour, startMinute);
+                
+                const endTime = new Date(startTime);
+                endTime.setSeconds(endTime.getSeconds() + duration);
+                
+                let status;
+                if (startHour > 9 || (startHour === 9 && startMinute > 0)) {
+                    status = 'late';
+                } else if (startHour < 8) {
+                    status = 'early';
+                } else {
+                    status = 'on-time';
+                }
+                
+                demoData.push({
+                    date: date.toLocaleDateString(),
+                    startTime: startTime.toLocaleTimeString(),
+                    endTime: endTime.toLocaleTimeString(),
+                    duration: duration,
+                    status: status,
+                    photo: null
+                });
+            }
+            
+            employeeData.workHistory = demoData;
+            saveData();
+            updateStats();
+            renderHistory();
+        }
+    </script>
+</body>
+</html>
