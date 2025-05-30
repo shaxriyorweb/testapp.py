@@ -1,3 +1,114 @@
+import os
+import sqlite3
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+)
+from gtts import gTTS
+from pydub import AudioSegment
+import speech_recognition as sr
+
+# 🔐 BOT TOKEN
+TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
+
+# 📦 SQLite baza
+conn = sqlite3.connect("user_history.db", check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS history (
+    user_id INTEGER,
+    username TEXT,
+    type TEXT,
+    content TEXT,
+    lang TEXT
+)
+""")
+conn.commit()
+
+# 🌍 Foydalanuvchi tili sozlamasi
+user_lang = {}
+
+# 📌 Har bir til uchun matnlar
+TEXTS = {
+    "uz": {
+        "start": "Assalomu alaykum! Men ovozni matnga va matnni ovozga aylantiruvchi botman.",
+        "help": "🎤 Ovoz yuboring – matnga aylantiraman\n📝 Matn yuboring – ovozga aylantiraman\n🌐 Tilni almashtirish uchun: /language",
+        "language": "Tilni tanlang:",
+        "converted_text": "📝 Matnga aylantirildi:",
+        "converted_voice": "🎧 Ovozga aylantirildi.",
+        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring."
+    },
+    "ru": {
+        "start": "Привет! Я бот, который преобразует голос в текст и наоборот.",
+        "help": "🎤 Отправьте голос – я превращу в текст\n📝 Отправьте текст – я превращу в голос\n🌐 Сменить язык: /language",
+        "language": "Выберите язык:",
+        "converted_text": "📝 Преобразованный текст:",
+        "converted_voice": "🎧 Преобразовано в голос.",
+        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз."
+    },
+    "en": {
+        "start": "Hello! I'm a bot that converts voice to text and text to voice.",
+        "help": "🎤 Send voice – I’ll convert to text\n📝 Send text – I’ll convert to voice\n🌐 Change language: /language",
+        "language": "Choose a language:",
+        "converted_text": "📝 Converted text:",
+        "converted_voice": "🎧 Converted to voice.",
+        "error": "😔 Could not recognize the voice. Please try again."
+    },
+    "tr": {
+        "start": "Merhaba! Ben sesi metne ve metni sese dönüştüren bir botum.",
+        "help": "🎤 Ses gönder – metne dönüştüreyim\n📝 Metin gönder – sese dönüştüreyim\n🌐 Dili değiştirmek için: /language",
+        "language": "Dil seçiniz:",
+        "converted_text": "📝 Metne dönüştürüldü:",
+        "converted_voice": "🎧 Sese dönüştürüldü.",
+        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin."
+    }
+}
+
+# 🌐 Til tanlash klaviaturasi
+LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
+
+def get_lang(user_id):
+    return user_lang.get(user_id, "uz")
+
+def save_history(user_id, username, type_, content, lang):
+    cursor.execute("INSERT INTO history VALUES (?, ?, ?, ?, ?)",
+                   (user_id, username, type_, content, lang))
+    conn.commit()
+
+# 🔹 /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(update.effective_user.id)
+    await update.message.reply_text(TEXTS[lang]["start"])
+    await help_command(update, context)
+
+# 🔹 /help
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(update.effective_user.id)
+    await update.message.reply_text(TEXTS[lang]["help"])
+
+# 🔹 /language
+async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_lang(update.effective_user.id)
+    await update.message.reply_text(
+        TEXTS[lang]["language"],
+        reply_markup=ReplyKeyboardMarkup(LANG_KEYBOARD, one_time_keyboard=True, resize_keyboard=True)
+    )
+
+# 🔹 Til tanlash
+async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_input = update.message.text
+    user_id = update.effective_user.id
+    if "UZ" in lang_input:
+        user_lang[user_id] = "uz"
+    elif "RU" in lang_input:
+        user_lang[user_id] = "ru"
+    elif "EN" in lang_input:
+        user_lang[user_id] = "en"
+    elif "TR" in lang_input:
+        user_lang[user_id] = "tr"
+    lang = get_lang(user_id)
+    await update.message.reply_text(f"✅ {lang_input} tanlandi.")
+    await help_command(update, context)
 # 🔹 VOICE → TEXT
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
