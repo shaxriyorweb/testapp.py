@@ -7,11 +7,10 @@ from telegram.ext import (
 from gtts import gTTS
 from pydub import AudioSegment
 import speech_recognition as sr
+from langdetect import detect, LangDetectException
 
-# 🔐 BOT TOKEN
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
 
-# 📦 SQLite baza
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
@@ -25,10 +24,8 @@ CREATE TABLE IF NOT EXISTS history (
 """)
 conn.commit()
 
-# 🌍 Foydalanuvchi tili sozlamasi
 user_lang = {}
 
-# 📌 Har bir til uchun matnlar
 TEXTS = {
     "uz": {
         "start": "Assalomu alaykum! Men ovozni matnga va matnni ovozga aylantiruvchi botman.",
@@ -36,8 +33,10 @@ TEXTS = {
         "language": "Tilni tanlang:",
         "converted_text": "📝 Matnga aylantirildi:",
         "converted_voice": "🎧 Ovozga aylantirildi.",
-        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring.",
-        "tts_error": "😔 Matndan ovozga aylantirishda xatolik yuz berdi."
+        "error": "😔 Ovoz tanib bo‘lmadi yoki til mos emas. Qaytadan urinib ko‘ring.",
+        "tts_error": "😔 Matndan ovozga aylantirishda xatolik yuz berdi.",
+        "wrong_lang_text": "❌ Siz tanlagan tilga mos kelmaydigan matn yubordingiz. Iltimos, faqat {} tilida yozing.",
+        "wrong_lang_voice": "❌ Siz tanlagan tilga mos kelmaydigan ovoz yubordingiz. Iltimos, faqat {} tilida gapiring."
     },
     "ru": {
         "start": "Привет! Я бот, который преобразует голос в текст и наоборот.",
@@ -45,8 +44,10 @@ TEXTS = {
         "language": "Выберите язык:",
         "converted_text": "📝 Преобразованный текст:",
         "converted_voice": "🎧 Преобразовано в голос.",
-        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз.",
-        "tts_error": "😔 Ошибка при преобразовании текста в речь."
+        "error": "😔 Не удалось распознать речь или язык не совпадает. Попробуйте ещё раз.",
+        "tts_error": "😔 Ошибка при преобразовании текста в речь.",
+        "wrong_lang_text": "❌ Вы отправили текст на другом языке, отличном от выбранного {}. Пожалуйста, используйте выбранный язык.",
+        "wrong_lang_voice": "❌ Вы отправили голосовое сообщение на другом языке, отличном от выбранного {}. Пожалуйста, говорите на выбранном языке."
     },
     "en": {
         "start": "Hello! I'm a bot that converts voice to text and text to voice.",
@@ -54,8 +55,10 @@ TEXTS = {
         "language": "Choose a language:",
         "converted_text": "📝 Converted text:",
         "converted_voice": "🎧 Converted to voice.",
-        "error": "😔 Could not recognize the voice. Please try again.",
-        "tts_error": "😔 Error converting text to speech."
+        "error": "😔 Could not recognize voice or language mismatch. Please try again.",
+        "tts_error": "😔 Error converting text to speech.",
+        "wrong_lang_text": "❌ You sent text in a language different from your chosen {}. Please use the chosen language.",
+        "wrong_lang_voice": "❌ You sent voice in a language different from your chosen {}. Please speak in the chosen language."
     },
     "tr": {
         "start": "Merhaba! Ben sesi metne ve metni sese dönüştüren bir botum.",
@@ -63,13 +66,22 @@ TEXTS = {
         "language": "Dil seçiniz:",
         "converted_text": "📝 Metne dönüştürüldü:",
         "converted_voice": "🎧 Sese dönüştürüldü.",
-        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin.",
-        "tts_error": "😔 Metni sese dönüştürürken hata oluştu."
+        "error": "😔 Ses tanınamadı veya dil uyumsuz. Lütfen tekrar deneyin.",
+        "tts_error": "😔 Metni sese dönüştürürken hata oluştu.",
+        "wrong_lang_text": "❌ Seçtiğiniz {} diline uymayan metin gönderdiniz. Lütfen sadece seçilen dili kullanın.",
+        "wrong_lang_voice": "❌ Seçtiğiniz {} diline uymayan ses gönderdiniz. Lütfen sadece seçilen dilde konuşun."
     }
 }
 
-# 🌐 Til tanlash klaviaturasi
 LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
+
+# Lang codes for speech_recognition and langdetect
+LANG_MAP = {
+    "uz": {"sr": "uz-UZ", "ld": "uz"},
+    "ru": {"sr": "ru-RU", "ld": "ru"},
+    "en": {"sr": "en-US", "ld": "en"},
+    "tr": {"sr": "tr-TR", "ld": "tr"}
+}
 
 def get_lang(user_id):
     return user_lang.get(user_id, "uz")
@@ -79,22 +91,18 @@ def save_history(user_id, username, type_, content, lang):
                    (user_id, username, type_, content, lang))
     conn.commit()
 
-# 🔹 /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    # Default tilni o‘rnatish agar yo‘q bo‘lsa
     if user_id not in user_lang:
         user_lang[user_id] = "uz"
     lang = get_lang(user_id)
     await update.message.reply_text(TEXTS[lang]["start"])
     await help_command(update, context)
 
-# 🔹 /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(update.effective_user.id)
     await update.message.reply_text(TEXTS[lang]["help"])
 
-# 🔹 /language
 async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(update.effective_user.id)
     await update.message.reply_text(
@@ -102,7 +110,6 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup(LANG_KEYBOARD, one_time_keyboard=True, resize_keyboard=True)
     )
 
-# 🔹 Til tanlash
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_input = update.message.text
     user_id = update.effective_user.id
@@ -118,7 +125,6 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ {lang_input} tanlandi.")
     await help_command(update, context)
 
-# 🔹 VOICE → TEXT
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
@@ -136,26 +142,29 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         recognizer.adjust_for_ambient_noise(source)
         audio_data = recognizer.record(source)
         try:
-            recog_lang = {
-                "uz": "uz-UZ",
-                "ru": "ru-RU",
-                "en": "en-US",
-                "tr": "tr-TR"
-            }[lang]
+            recog_lang = LANG_MAP[lang]["sr"]
             text = recognizer.recognize_google(audio_data, language=recog_lang)
-            await update.message.reply_text(f"{TEXTS[lang]['converted_text']} {text}")
-            save_history(user.id, user.username, "voice_to_text", text, lang)
+
+            # Matn tilini aniqlash va tekshirish
+            try:
+                detected_lang = detect(text)
+            except LangDetectException:
+                detected_lang = None
+
+            if detected_lang != LANG_MAP[lang]["ld"]:
+                await update.message.reply_text(TEXTS[lang]["wrong_lang_voice"].format(lang.upper()))
+            else:
+                await update.message.reply_text(f"{TEXTS[lang]['converted_text']} {text}")
+                save_history(user.id, user.username, "voice_to_text", text, lang)
         except Exception as e:
             await update.message.reply_text(TEXTS[lang]["error"])
             print("Speech recognition error:", e)
 
-    # Fayllarni o'chirish
     if os.path.exists(file_path):
         os.remove(file_path)
     if os.path.exists(wav_path):
         os.remove(wav_path)
 
-# 🔹 TEXT → VOICE
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
@@ -166,9 +175,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await set_language(update, context)
         return
 
+    # Matn tilini aniqlash
     try:
-        # gTTS uchun til kodi boshqacha (uzbek uchun 'uz' emas, 'uz' ni google gTTS to‘liq qo‘llamaydi,
-        # shuning uchun 'uz' o‘rniga 'en' ishlatamiz yoki turkcha 'tr' agar kerak bo‘lsa)
+        detected_lang = detect(text)
+    except LangDetectException:
+        detected_lang = None
+
+    if detected_lang != LANG_MAP[lang]["ld"]:
+        await update.message.reply_text(TEXTS[lang]["wrong_lang_text"].format(lang.upper()))
+        return
+
+    try:
         tts_lang_map = {
             "uz": "en",  # gTTS uzbek tilini to‘liq qo‘llamaydi, shuning uchun ingliz tilida ovoz chiqadi
             "ru": "ru",
@@ -189,7 +206,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(TEXTS[lang]["tts_error"])
         print("TTS Error:", e)
 
-# 🧠 BOT START
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
