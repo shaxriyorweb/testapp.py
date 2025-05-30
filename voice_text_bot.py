@@ -53,10 +53,17 @@ TEXTS = {
         "converted_text": "📝 Converted text:",
         "converted_voice": "🎧 Converted to voice.",
         "error": "😔 Could not recognize the voice. Please try again."
+    },
+    "tr":{
+        
+        "uz": "Iltimos, matn yuboring 📝",
+        "ru": "Пожалуйста, отправьте текст 📝",
+        "en": "Please send text 📝",
+        "tr": "Lütfen bir metin gönderin 📝"
     }
 }
 
-LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧"]]
+LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", 'Türkçe 🇹🇷']]
 
 def get_lang(user_id):
     return user_lang.get(user_id, "uz")
