@@ -8,7 +8,7 @@ from gtts import gTTS
 from pydub import AudioSegment
 import speech_recognition as sr
 
-TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
+TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"  # o'z tokeningizni qo'ying
 
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -74,7 +74,6 @@ TEXTS = {
 
 LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
 
-# Musiqa fayllari (misol uchun nom va fayl nomi)
 MUSIC_FILES = {
     "uz": {
         "musiqa1": "music/uz/musiqa1.mp3",
@@ -119,21 +118,26 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang_input = update.message.text
+    lang_input = update.message.text.upper()
     user_id = update.effective_user.id
-    if "UZ" in lang_input:
+
+    if lang_input.startswith("UZ"):
         user_lang[user_id] = "uz"
-    elif "RU" in lang_input:
+    elif lang_input.startswith("RU"):
         user_lang[user_id] = "ru"
-    elif "EN" in lang_input:
+    elif lang_input.startswith("EN"):
         user_lang[user_id] = "en"
-    elif "TR" in lang_input:
+    elif lang_input.startswith("TR"):
         user_lang[user_id] = "tr"
+    else:
+        # Agar til tanlash tugmasi bo'lmasa, boshqa handlerga beramiz
+        await handle_text(update, context)
+        return
+
     lang = get_lang(user_id)
     await update.message.reply_text(TEXTS[lang]["language_set"].format(lang_input))
     await help_command(update, context)
 
-# Til kodi SpeechRecognition uchun (STT)
 recog_lang = {
     "uz": "en-US",  # O'zbek tilini inglizcha kod bilan ishlatamiz
     "ru": "ru-RU",
@@ -141,7 +145,6 @@ recog_lang = {
     "tr": "tr-TR"
 }
 
-# Til kodi gTTS uchun (TTS)
 tts_lang = {
     "uz": "en",
     "ru": "ru",
@@ -167,9 +170,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         audio_data = recognizer.record(source)
         try:
             text = recognizer.recognize_google(audio_data, language=recog_lang[lang])
-            # Tekshirish: matn faqat tanlangan tilga mos kelishi kerak
-            # (Soddaligi uchun, faqat lug'atdagi kalit so'zlarni tekshirish mumkin)
-            # Shu yerga o'zingiz tilga mos tekshiruv qo'shishingiz mumkin
             if not is_text_correct_language(text, lang):
                 await update.message.reply_text(TEXTS[lang]["wrong_lang"])
             else:
@@ -197,7 +197,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(TEXTS[lang]["music_not_found"])
         return
 
-    # Matn faqat tanlangan tilga mos kelishi kerak (bu yerda oddiy tekshiruv)
     if not is_text_correct_language(text, lang):
         await update.message.reply_text(TEXTS[lang]["wrong_lang"])
         return
@@ -213,37 +212,29 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print("TTS error:", e)
 
 def is_text_correct_language(text: str, lang: str) -> bool:
-    # Bu yerda siz tilga mos kelishini tekshiruvchi sodda funksiya yozing.
-    # Misol uchun, harf to'plamiga qarab yoki maxsus kalit so'zlar bo'yicha.
-    # Hozircha oddiy tekshiruv: o‘zbek uchun lotin harflari, rus uchun kirill, ingliz uchun lotin, turk uchun lotin.
-
     if lang == "uz":
-        # O‘zbek uchun faqat lotin harflari va bo‘sh joylar
         return all(c.isalpha() or c.isspace() for c in text)
     elif lang == "ru":
-        # Rus tilida kirill harflaridan bo‘lishi kerak
         return any('а' <= c <= 'я' or 'А' <= c <= 'Я' for c in text)
     elif lang == "en":
-        # Ingliz uchun lotin harflari
         return all(c.isascii() and (c.isalpha() or c.isspace()) for c in text)
     elif lang == "tr":
-        # Turkiy til uchun lotin harflari va o'ziga xos harflar: ç, ğ, ı, ö, ş, ü
         allowed = "abcçdefgğhıijklmnoöprsştuüvyz "
         return all(c.lower() in allowed for c in text)
-    return False
-
-def main():
-    application = ApplicationBuilder().token(TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("language", language))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), set_language))
-    application.add_handler(MessageHandler(filters.VOICE, handle_voice))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
-
-    print("Bot ishga tushdi...")
-    application.run_polling()
+    return True
 
 if __name__ == "__main__":
-    main()
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("language", language))
+    # Til tanlash uchun faqat maxsus tugmalar
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), set_language))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+
+    # Faqat til tanlash tugmalariga kirmagan matnlar uchun
+    # Shunday qilib, set_language til tugmalari bo'lsa ishlaydi, boshqa matnlar esa ovozga aylanadi
+    # Buni `set_language` ichida shart qo'yib qilamiz
+
+    app.run_polling()
