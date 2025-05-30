@@ -9,7 +9,7 @@ from pydub import AudioSegment
 import speech_recognition as sr
 
 # 🔐 BOT TOKEN
-TOKEN = "YOUR_BOT_TOKEN"
+TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
 
 # 📦 Foydalanuvchi ma'lumotlari uchun baza
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
