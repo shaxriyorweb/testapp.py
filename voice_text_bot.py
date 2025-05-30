@@ -7,6 +7,7 @@ from telegram.ext import (
 from gtts import gTTS
 from pydub import AudioSegment
 import speech_recognition as sr
+from langdetect import detect, LangDetectException  # <-- til aniqlash uchun
 
 # 🔐 BOT TOKEN
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
@@ -36,7 +37,8 @@ TEXTS = {
         "language": "Tilni tanlang:",
         "converted_text": "📝 Matnga aylantirildi:",
         "converted_voice": "🎧 Ovozga aylantirildi.",
-        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring."
+        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring.",
+        "wrong_lang": "❌ Iltimos, faqat tanlangan tilingizda yozing."
     },
     "ru": {
         "start": "Привет! Я бот, который преобразует голос в текст и наоборот.",
@@ -44,7 +46,8 @@ TEXTS = {
         "language": "Выберите язык:",
         "converted_text": "📝 Преобразованный текст:",
         "converted_voice": "🎧 Преобразовано в голос.",
-        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз."
+        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз.",
+        "wrong_lang": "❌ Пожалуйста, пишите только на выбранном языке."
     },
     "en": {
         "start": "Hello! I'm a bot that converts voice to text and text to voice.",
@@ -52,7 +55,8 @@ TEXTS = {
         "language": "Choose a language:",
         "converted_text": "📝 Converted text:",
         "converted_voice": "🎧 Converted to voice.",
-        "error": "😔 Could not recognize the voice. Please try again."
+        "error": "😔 Could not recognize the voice. Please try again.",
+        "wrong_lang": "❌ Please write only in your selected language."
     },
     "tr": {
         "start": "Merhaba! Ben sesi metne ve metni sese dönüştüren bir botum.",
@@ -60,7 +64,8 @@ TEXTS = {
         "language": "Dil seçiniz:",
         "converted_text": "📝 Metne dönüştürüldü:",
         "converted_voice": "🎧 Sese dönüştürüldü.",
-        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin."
+        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin.",
+        "wrong_lang": "❌ Lütfen sadece seçilen dilde yazın."
     }
 }
 
@@ -74,6 +79,14 @@ def save_history(user_id, username, type_, content, lang):
     cursor.execute("INSERT INTO history VALUES (?, ?, ?, ?, ?)",
                    (user_id, username, type_, content, lang))
     conn.commit()
+
+# Til kodi uchun langdetect kodi mapping
+LANGDETECT_CODES = {
+    "uz": "uz",
+    "ru": "ru",
+    "en": "en",
+    "tr": "tr"
+}
 
 # 🔹 /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,6 +123,17 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ {lang_input} tanlandi.")
     await help_command(update, context)
 
+# Matn tilini aniqlash va tanlangan til bilan solishtirish
+def is_text_in_user_lang(text: str, user_lang_code: str) -> bool:
+    try:
+        detected_lang = detect(text)
+        # Detected lang qisman mos bo'lishi mumkin
+        # LangDetect ba'zida "en" emas "en-US" kabi beradi, biz faqat birinchi ikki harfni solishtiramiz
+        return detected_lang[:2] == LANGDETECT_CODES[user_lang_code][:2]
+    except LangDetectException:
+        # Til aniqlanmasa yoki juda qisqa matn bo'lsa
+        return False
+
 # 🔹 VOICE → TEXT
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -135,8 +159,12 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "tr": "tr-TR"
             }[lang]
             text = recognizer.recognize_google(audio_data, language=recog_lang)
-            await update.message.reply_text(f"{TEXTS[lang]['converted_text']} {text}")
-            save_history(user.id, user.username, "voice_to_text", text, lang)
+            # Ovoz tanilgan matn ham foydalanuvchi tiliga mos bo'lishi kerak
+            if not is_text_in_user_lang(text, lang):
+                await update.message.reply_text(TEXTS[lang]["wrong_lang"])
+            else:
+                await update.message.reply_text(f"{TEXTS[lang]['converted_text']} {text}")
+                save_history(user.id, user.username, "voice_to_text", text, lang)
         except Exception as e:
             await update.message.reply_text(TEXTS[lang]["error"])
             print("Speech recognition error:", e)
@@ -152,6 +180,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text in ["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]:
         await set_language(update, context)
+        return
+
+    # Matn tilini tekshirish
+    if not is_text_in_user_lang(text, lang):
+        await update.message.reply_text(TEXTS[lang]["wrong_lang"])
         return
 
     try:
