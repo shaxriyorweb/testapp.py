@@ -12,7 +12,7 @@ import speech_recognition as sr
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
 
 # 🛡 Adminlar ro'yxati (Telegram ID'sini qo‘shing)
-ADMIN_IDS = [7750409176]  # <-- O'Z TELEGRAM ID'ingizNI KO'SHING
+ADMIN_IDS = [7750409176]
 
 # 📦 SQLite baza
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
@@ -67,7 +67,6 @@ TEXTS = {
     }
 }
 
-# 🌐 Til tanlash klaviaturasi
 LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
 
 def get_lang(user_id):
@@ -178,12 +177,29 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_count = cursor.fetchone()[0]
     await update.message.reply_text(f"📊 Botdan foydalangan foydalanuvchilar soni: {user_count}")
 
+# 🔹 /history (oxirgi 10 ta so‘rov)
+async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Sizda bu buyruqdan foydalanish uchun ruxsat yo‘q.")
+        return
+    cursor.execute("SELECT * FROM history ORDER BY ROWID DESC LIMIT 10")
+    rows = cursor.fetchall()
+    if not rows:
+        await update.message.reply_text("⛔ Hozircha tarix mavjud emas.")
+    else:
+        msg = "\n\n".join(
+            [f"👤 @{r[1]}\n🔁 {r[2]}\n📌 {r[3]}\n🌐 {r[4]}" for r in rows]
+        )
+        await update.message.reply_text("🕓 Oxirgi 10 ta so‘rov:\n\n" + msg)
+
 # 🧠 BOT START
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_command))
 app.add_handler(CommandHandler("language", language))
 app.add_handler(CommandHandler("stats", stats))
+app.add_handler(CommandHandler("history", history))  # ✅ yangi qo‘shildi
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
 
