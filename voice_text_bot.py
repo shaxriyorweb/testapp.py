@@ -11,6 +11,9 @@ import speech_recognition as sr
 # 🔐 BOT TOKEN
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
 
+# 🛡 Adminlar ro'yxati (Telegram ID'sini qo‘shing)
+ADMIN_IDS = [7750409176]  # <-- O'Z TELEGRAM ID'ingizNI KO'SHING
+
 # 📦 SQLite baza
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
 cursor = conn.cursor()
@@ -109,6 +112,7 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(user_id)
     await update.message.reply_text(f"✅ {lang_input} tanlandi.")
     await help_command(update, context)
+
 # 🔹 VOICE → TEXT
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -164,11 +168,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("😔 Matndan ovozga aylantirishda xatolik yuz berdi.")
         print("TTS Error:", e)
 
+# 🔹 /stats (faqat admin uchun)
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id not in ADMIN_IDS:
+        await update.message.reply_text("❌ Sizda bu buyruqdan foydalanish uchun ruxsat yo‘q.")
+        return
+    cursor.execute("SELECT COUNT(DISTINCT user_id) FROM history")
+    user_count = cursor.fetchone()[0]
+    await update.message.reply_text(f"📊 Botdan foydalangan foydalanuvchilar soni: {user_count}")
+
 # 🧠 BOT START
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_command))
 app.add_handler(CommandHandler("language", language))
+app.add_handler(CommandHandler("stats", stats))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
 
