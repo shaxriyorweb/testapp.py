@@ -13,7 +13,7 @@ public class VoiceTextBot extends TelegramLongPollingBot {
 
     private static final String TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY";
     private static final String USERNAME = "7899690264";
-    private static final List<Long> ADMIN_IDS = Arrays.asList(7750409176);
+    private static final List<Long> ADMIN_IDS = Arrays.asList(7750409176L);
 
     private Connection conn;
 
@@ -60,6 +60,12 @@ public class VoiceTextBot extends TelegramLongPollingBot {
                         setLang(userId, text);
                         sendText(message.getChatId(), "✅ Til o‘zgartirildi: " + text);
                         break;
+                    // Tabrik matni yoki ovozga aylantirish uchun kalit so‘zlar
+                    case "Tabrik":
+                    case "Tug'ilgan kun":
+                    case "Bayram":
+                        sendGreeting(message.getChatId(), userId, username, lang);
+                        break;
                     default:
                         handleTextToSpeech(message.getChatId(), userId, username, text, lang);
                 }
@@ -77,9 +83,50 @@ public class VoiceTextBot extends TelegramLongPollingBot {
         }
     }
 
+    private void sendGreeting(Long chatId, Long userId, String username, String lang) {
+        String greeting = switch (lang) {
+            case "ru" -> "Поздравляем с этим особенным днем! Желаем вам здоровья, счастья и успехов во всем.";
+            case "en" -> "Happy Birthday! Wishing you health, happiness, and success in everything you do.";
+            case "tr" -> "Doğum gününüz kutlu olsun! Sağlık, mutluluk ve başarı dolu nice yıllar dileriz.";
+            default -> "Tug‘ilgan kuningiz bilan tabriklaymiz! Sizga sog‘liq, baxt va katta muvaffaqiyatlar tilaymiz.";
+        };
+
+        String langCode = switch (lang) {
+            case "ru" -> "ru";
+            case "en" -> "en";
+            case "tr" -> "tr";
+            default -> "uz";
+        };
+
+        try {
+            // Python subprocess chaqirish - tts.py faylni ishga tushirish
+            ProcessBuilder pb = new ProcessBuilder("python", "tts.py", greeting, langCode);
+            pb.inheritIO();
+            Process process = pb.start();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                sendText(chatId, "😔 TTS serverda xatolik yuz berdi.");
+                return;
+            }
+
+            // Yaratilgan greeting.mp3 faylni Telegramga yuborish
+            SendVoice voiceMsg = new SendVoice();
+            voiceMsg.setChatId(String.valueOf(chatId));
+            voiceMsg.setVoice(new InputFile(new java.io.File("greeting.mp3")));
+            execute(voiceMsg);
+
+            sendText(chatId, "🎉 Bayram tabrigi yuborildi!");
+            saveHistory(userId, username, "birthday_greeting", greeting, lang);
+
+        } catch (Exception e) {
+            sendText(chatId, "😔 Tabrikni ovozga aylantirishda xatolik yuz berdi.");
+            e.printStackTrace();
+        }
+    }
+
     private void handleTextToSpeech(Long chatId, Long userId, String username, String text, String lang) {
         try {
-            // ✅ Text-to-speech Java-da murakkab (TTS API kerak yoki subprocess orqali `gTTS`)
+            // Agar matnni ovozga aylantirish uchun boshqa kalit so‘z bo‘lmasa, shunchaki xabar yuboramiz
             sendText(chatId, "🎧 Matn ovozga aylantirildi (Java versiyasi hali to‘liq emas)");
             saveHistory(userId, username, "text_to_voice", text, lang);
         } catch (Exception e) {
