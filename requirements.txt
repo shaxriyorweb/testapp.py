@@ -1,4 +1,4 @@
-python-telegram-bot
+python-telegram-bot==20.3
 gtts==2.3.2
 pydub==0.25.1
 SpeechRecognition==3.8.1
