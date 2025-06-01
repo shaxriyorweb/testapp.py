@@ -13,7 +13,7 @@ import speech_recognition as sr
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
 ADMIN_IDS = [7750409176]
 
-CHANNEL_USERNAME =-1002632823715  # <-- Kanal username sini shu yerga yozing (misol: @my_channel)
+CHANNEL_USERNAME ="https://t.me/Shaxriyor_web_bot"  # <-- Kanal username sini shu yerga yozing (misol: @my_channel)
 
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
 cursor = conn.cursor()
