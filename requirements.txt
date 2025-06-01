@@ -3,4 +3,3 @@ gtts==2.3.2
 pydub==0.25.1
 SpeechRecognition==3.8.1
 langdetect==1.0.9
-
