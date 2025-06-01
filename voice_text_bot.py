@@ -1,191 +1,145 @@
+import json
 import os
-import sqlite3
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import (
+    Update, InlineKeyboardMarkup, InlineKeyboardButton
+)
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    CallbackQueryHandler, filters, ContextTypes
 )
-from gtts import gTTS
-from pydub import AudioSegment
-import speech_recognition as sr
+from telegram.error import BadRequest
 
-# 🔐 BOT TOKEN
-TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
+# 🔧 Fayl nomi
+USER_DATA_FILE = "user_data.json"
+CHANNEL_USERNAME = "2632823715"
 
-# 🛡 Adminlar ro'yxati (Telegram ID'sini qo‘shing)
-ADMIN_IDS = [7750409176]  # <-- O'Z TELEGRAM ID'ingizNI KO'SHING
-
-# 📦 SQLite baza
-conn = sqlite3.connect("user_history.db", check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS history (
-    user_id INTEGER,
-    username TEXT,
-    type TEXT,
-    content TEXT,
-    lang TEXT
-)
-""")
-conn.commit()
-
-# 🌍 Foydalanuvchi tili sozlamasi
-user_lang = {}
-
-# 📌 Har bir til uchun matnlar
+# 🌐 Matnlar
 TEXTS = {
-    "uz": {
-        "start": "Assalomu alaykum! Men ovozni matnga va matnni ovozga aylantiruvchi botman.",
-        "help": "🎤 Ovoz yuboring – matnga aylantiraman\n📝 Matn yuboring – ovozga aylantiraman\n🌐 Tilni almashtirish uchun: /language",
-        "language": "Tilni tanlang:",
-        "converted_text": "📝 Matnga aylantirildi:",
-        "converted_voice": "🎧 Ovozga aylantirildi.",
-        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring."
+    "start": {
+        "uz": "👋 Assalomu alaykum! Botdan foydalanish uchun quyidagi tugmalarni tanlang.",
+        "ru": "👋 Здравствуйте! Используйте кнопки ниже для навигации.",
+        "en": "👋 Hello! Use the buttons below to navigate.",
+        "tr": "👋 Merhaba! Aşağıdaki düğmeleri kullanın."
     },
-    "ru": {
-        "start": "Привет! Я бот, который преобразует голос в текст и наоборот.",
-        "help": "🎤 Отправьте голос – я превращу в текст\n📝 Отправьте текст – я превращу в голос\n🌐 Сменить язык: /language",
-        "language": "Выберите язык:",
-        "converted_text": "📝 Преобразованный текст:",
-        "converted_voice": "🎧 Преобразовано в голос.",
-        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз."
+    "not_subscribed": {
+        "uz": f"❗ Botdan foydalanish uchun avval kanalga obuna bo‘ling:\n{CHANNEL_USERNAME}",
+        "ru": f"❗ Пожалуйста, сначала подпишитесь на канал:\n{CHANNEL_USERNAME}",
+        "en": f"❗ Please subscribe to the channel first:\n{CHANNEL_USERNAME}",
+        "tr": f"❗ Lütfen önce kanala abone olun:\n{CHANNEL_USERNAME}"
     },
-    "en": {
-        "start": "Hello! I'm a bot that converts voice to text and text to voice.",
-        "help": "🎤 Send voice – I’ll convert to text\n📝 Send text – I’ll convert to voice\n🌐 Change language: /language",
-        "language": "Choose a language:",
-        "converted_text": "📝 Converted text:",
-        "converted_voice": "🎧 Converted to voice.",
-        "error": "😔 Could not recognize the voice. Please try again."
+    "help": {
+        "uz": "🆘 Yordam: Savollar bo‘lsa shu yerga yozing.",
+        "ru": "🆘 Помощь: Напишите сюда, если есть вопросы.",
+        "en": "🆘 Help: Write here if you have any questions.",
+        "tr": "🆘 Yardım: Sorularınız varsa buraya yazın."
     },
-    "tr": {
-        "start": "Merhaba! Ben sesi metne ve metni sese dönüştüren bir botum.",
-        "help": "🎤 Ses gönder – metne dönüştüreyim\n📝 Metin gönder – sese dönüştüreyim\n🌐 Dili değiştirmek için: /language",
-        "language": "Dil seçiniz:",
-        "converted_text": "📝 Metne dönüştürüldü:",
-        "converted_voice": "🎧 Sese dönüştürüldü.",
-        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin."
+    "stats": {
+        "uz": "📊 Foydalanuvchilar soni:",
+        "ru": "📊 Количество пользователей:",
+        "en": "📊 Number of users:",
+        "tr": "📊 Kullanıcı sayısı:"
+    },
+    "language_changed": {
+        "uz": "✅ Til o‘zgaritildi: O‘zbekcha",
+        "ru": "✅ Язык изменён: Русский",
+        "en": "✅ Language changed: English",
+        "tr": "✅ Dil değiştirildi: Türkçe"
     }
 }
 
-# 🌐 Til tanlash klaviaturasi
-LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
+# 📁 Foydalanuvchilarni JSON faylda saqlash
+def load_user_data():
+    if os.path.exists(USER_DATA_FILE):
+        with open(USER_DATA_FILE, "r") as f:
+            return json.load(f)
+    return {}
 
-def get_lang(user_id):
-    return user_lang.get(user_id, "uz")
+def save_user_data(data):
+    with open(USER_DATA_FILE, "w") as f:
+        json.dump(data, f)
 
-def save_history(user_id, username, type_, content, lang):
-    cursor.execute("INSERT INTO history VALUES (?, ?, ?, ?, ?)",
-                   (user_id, username, type_, content, lang))
-    conn.commit()
+# 🌐 Foydalanuvchi tilini aniqlash
+def get_lang(update: Update):
+    code = update.effective_user.language_code or "uz"
+    if code.startswith("ru"):
+        return "ru"
+    elif code.startswith("en"):
+        return "en"
+    elif code.startswith("tr"):
+        return "tr"
+    else:
+        return "uz"
 
-# 🔹 /start
+# ✅ Obuna tekshirish
+async def is_subscribed(user_id, context):
+    try:
+        member = await context.bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ['member', 'creator', 'administrator']
+    except BadRequest:
+        return False
+
+# 🧭 Inline tugmalar
+def get_keyboard(lang):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Statistika", callback_data="stats")],
+        [InlineKeyboardButton("🆘 Yordam", callback_data="help")],
+        [InlineKeyboardButton("🔁 Tilni o‘zgartirish", callback_data="change_lang")]
+    ])
+
+# 🚀 /start komandasi
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = get_lang(update.effective_user.id)
-    await update.message.reply_text(TEXTS[lang]["start"])
-    await help_command(update, context)
+    user_id = update.effective_user.id
+    lang = get_lang(update)
 
-# 🔹 /help
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = get_lang(update.effective_user.id)
-    await update.message.reply_text(TEXTS[lang]["help"])
+    if not await is_subscribed(user_id, context):
+        await update.message.reply_text(TEXTS["not_subscribed"][lang])
+        return
 
-# 🔹 /language
-async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = get_lang(update.effective_user.id)
+    # 👤 Foydalanuvchini saqlash
+    user_data = load_user_data()
+    user_data[str(user_id)] = lang
+    save_user_data(user_data)
+
     await update.message.reply_text(
-        TEXTS[lang]["language"],
-        reply_markup=ReplyKeyboardMarkup(LANG_KEYBOARD, one_time_keyboard=True, resize_keyboard=True)
+        TEXTS["start"][lang],
+        reply_markup=get_keyboard(lang)
     )
 
-# 🔹 Til tanlash
-async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang_input = update.message.text
-    user_id = update.effective_user.id
-    if "UZ" in lang_input:
-        user_lang[user_id] = "uz"
-    elif "RU" in lang_input:
-        user_lang[user_id] = "ru"
-    elif "EN" in lang_input:
-        user_lang[user_id] = "en"
-    elif "TR" in lang_input:
-        user_lang[user_id] = "tr"
-    lang = get_lang(user_id)
-    await update.message.reply_text(f"✅ {lang_input} tanlandi.")
-    await help_command(update, context)
+# 🎛 Tugmalar ustida ishlov
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    user_data = load_user_data()
+    lang = user_data.get(str(user_id), "uz")
 
-# 🔹 VOICE → TEXT
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
+    if query.data == "stats":
+        total_users = len(user_data)
+        await query.edit_message_text(f"{TEXTS['stats'][lang]} {total_users}")
+    elif query.data == "help":
+        await query.edit_message_text(TEXTS["help"][lang])
+    elif query.data == "change_lang":
+        # 🔄 Tilni aylantirish
+        langs = ["uz", "ru", "en", "tr"]
+        current_index = langs.index(lang)
+        new_lang = langs[(current_index + 1) % len(langs)]
+        user_data[str(user_id)] = new_lang
+        save_user_data(user_data)
+        await query.edit_message_text(TEXTS["language_changed"][new_lang])
 
-    file = await update.message.voice.get_file()
-    file_path = "voice.ogg"
-    await file.download_to_drive(file_path)
-
-    audio = AudioSegment.from_ogg(file_path)
-    wav_path = "voice.wav"
-    audio.export(wav_path, format="wav")
-
-    recognizer = sr.Recognizer()
-    with sr.AudioFile(wav_path) as source:
-        recognizer.adjust_for_ambient_noise(source)
-        audio_data = recognizer.record(source)
-        try:
-            recog_lang = {
-                "uz": "uz-UZ",
-                "ru": "ru-RU",
-                "en": "en-US",
-                "tr": "tr-TR"
-            }[lang]
-            text = recognizer.recognize_google(audio_data, language=recog_lang)
-            await update.message.reply_text(f"{TEXTS[lang]['converted_text']} {text}")
-            save_history(user.id, user.username, "voice_to_text", text, lang)
-        except Exception as e:
-            await update.message.reply_text(TEXTS[lang]["error"])
-            print("Speech recognition error:", e)
-
-    os.remove(file_path)
-    os.remove(wav_path)
-
-# 🔹 TEXT → VOICE
+# ✉️ Matnli xabarlar (ixtiyoriy)
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = get_lang(user.id)
-    text = update.message.text
+    pass  # Istasangiz bu yerga xabar qabul qilishni yozish mumkin
 
-    if text in ["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]:
-        await set_language(update, context)
-        return
+# 🧠 Asosiy funksiya
+async def main():
+    app = ApplicationBuilder().token("7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY").build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    print("🤖 Bot ishga tushdi...")
+    await app.run_polling()
 
-    try:
-        tts = gTTS(text=text, lang=lang)
-        tts.save("speech.mp3")
-        await update.message.reply_voice(voice=open("speech.mp3", "rb"))
-        await update.message.reply_text(TEXTS[lang]["converted_voice"])
-        save_history(user.id, user.username, "text_to_voice", text, lang)
-        os.remove("speech.mp3")
-    except Exception as e:
-        await update.message.reply_text("😔 Matndan ovozga aylantirishda xatolik yuz berdi.")
-        print("TTS Error:", e)
-
-# 🔹 /stats (faqat admin uchun)
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    if user.id not in ADMIN_IDS:
-        await update.message.reply_text("❌ Sizda bu buyruqdan foydalanish uchun ruxsat yo‘q.")
-        return
-    cursor.execute("SELECT COUNT(DISTINCT user_id) FROM history")
-    user_count = cursor.fetchone()[0]
-    await update.message.reply_text(f"📊 Botdan foydalangan foydalanuvchilar soni: {user_count}")
-
-# 🧠 BOT START
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("help", help_command))
-app.add_handler(CommandHandler("language", language))
-app.add_handler(CommandHandler("stats", stats))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
-
-print("🤖 Bot ishga tushdi...")
-app.run_polling()
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
