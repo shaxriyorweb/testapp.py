@@ -1,20 +1,20 @@
 import os
 import sqlite3
-from telegram import (
-    Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-)
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters, CallbackQueryHandler
+    ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 )
 from gtts import gTTS
 from pydub import AudioSegment
 import speech_recognition as sr
 
+# 🔐 BOT TOKEN
 TOKEN = "7899690264:AAH14dhEGOlvRoc4CageMH6WYROMEE5NmkY"
-ADMIN_IDS = [7750409176]
 
-CHANNEL_USERNAME ="@Shaxriyor_web"  # <-- Kanal username sini shu yerga yozing (misol: @my_channel2qtf)
+# 🛡 Adminlar ro'yxati (Telegram ID'sini qo‘shing)
+ADMIN_IDS = [7750409176]  # <-- O'Z TELEGRAM ID'ingizNI KO'SHING
 
+# 📦 SQLite baza
 conn = sqlite3.connect("user_history.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("""
@@ -28,8 +28,10 @@ CREATE TABLE IF NOT EXISTS history (
 """)
 conn.commit()
 
+# 🌍 Foydalanuvchi tili sozlamasi
 user_lang = {}
 
+# 📌 Har bir til uchun matnlar
 TEXTS = {
     "uz": {
         "start": "Assalomu alaykum! Men ovozni matnga va matnni ovozga aylantiruvchi botman.",
@@ -37,9 +39,7 @@ TEXTS = {
         "language": "Tilni tanlang:",
         "converted_text": "📝 Matnga aylantirildi:",
         "converted_voice": "🎧 Ovozga aylantirildi.",
-        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring.",
-        "subscribe": f"Iltimos, botdan foydalanish uchun kanalimizga obuna bo'ling: {CHANNEL_USERNAME}",
-        "subscribe_button": "Kanalga obuna bo‘ling"
+        "error": "😔 Ovoz tanib bo‘lmadi. Qaytadan urinib ko‘ring."
     },
     "ru": {
         "start": "Привет! Я бот, который преобразует голос в текст и наоборот.",
@@ -47,9 +47,7 @@ TEXTS = {
         "language": "Выберите язык:",
         "converted_text": "📝 Преобразованный текст:",
         "converted_voice": "🎧 Преобразовано в голос.",
-        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз.",
-        "subscribe": f"Пожалуйста, подпишитесь на наш канал, чтобы использовать бота: {CHANNEL_USERNAME}",
-        "subscribe_button": "Подписаться на канал"
+        "error": "😔 Не удалось распознать речь. Попробуйте ещё раз."
     },
     "en": {
         "start": "Hello! I'm a bot that converts voice to text and text to voice.",
@@ -57,9 +55,7 @@ TEXTS = {
         "language": "Choose a language:",
         "converted_text": "📝 Converted text:",
         "converted_voice": "🎧 Converted to voice.",
-        "error": "😔 Could not recognize the voice. Please try again.",
-        "subscribe": f"Please subscribe to our channel to use the bot: {CHANNEL_USERNAME}",
-        "subscribe_button": "Subscribe to channel"
+        "error": "😔 Could not recognize the voice. Please try again."
     },
     "tr": {
         "start": "Merhaba! Ben sesi metne ve metni sese dönüştüren bir botum.",
@@ -67,12 +63,11 @@ TEXTS = {
         "language": "Dil seçiniz:",
         "converted_text": "📝 Metne dönüştürüldü:",
         "converted_voice": "🎧 Sese dönüştürüldü.",
-        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin.",
-        "subscribe": f"Lütfen botu kullanmak için kanalımıza abone olun: {CHANNEL_USERNAME}",
-        "subscribe_button": "Kanala abone ol"
+        "error": "😔 Ses tanınamadı. Lütfen tekrar deneyin."
     }
 }
 
+# 🌐 Til tanlash klaviaturasi
 LANG_KEYBOARD = [["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]]
 
 def get_lang(user_id):
@@ -83,35 +78,18 @@ def save_history(user_id, username, type_, content, lang):
                    (user_id, username, type_, content, lang))
     conn.commit()
 
-# Check if user is member of the channel
-async def is_user_subscribed(bot, user_id):
-    try:
-        member = await bot.get_chat_member(chat_id=CHANNEL_USERNAME, user_id=user_id)
-        return member.status != "left"
-    except Exception as e:
-        print(f"Subscription check error: {e}")
-        return False
-
+# 🔹 /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    lang = get_lang(user_id)
-
-    subscribed = await is_user_subscribed(context.bot, user_id)
-    if not subscribed:
-        # Inline button for channel link
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(text=TEXTS[lang]["subscribe_button"], url=f"https://t.me/{CHANNEL_USERNAME.strip('@')}")
-        ]])
-        await update.message.reply_text(TEXTS[lang]["subscribe"], reply_markup=keyboard)
-        return
-    
+    lang = get_lang(update.effective_user.id)
     await update.message.reply_text(TEXTS[lang]["start"])
     await help_command(update, context)
 
+# 🔹 /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(update.effective_user.id)
     await update.message.reply_text(TEXTS[lang]["help"])
 
+# 🔹 /language
 async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(update.effective_user.id)
     await update.message.reply_text(
@@ -119,6 +97,7 @@ async def language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardMarkup(LANG_KEYBOARD, one_time_keyboard=True, resize_keyboard=True)
     )
 
+# 🔹 Til tanlash
 async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_input = update.message.text
     user_id = update.effective_user.id
@@ -134,18 +113,10 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"✅ {lang_input} tanlandi.")
     await help_command(update, context)
 
+# 🔹 VOICE → TEXT
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
-    
-    # Check subscription
-    subscribed = await is_user_subscribed(context.bot, user.id)
-    if not subscribed:
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(text=TEXTS[lang]["subscribe_button"], url=f"https://t.me/{CHANNEL_USERNAME.strip('@')}")
-        ]])
-        await update.message.reply_text(TEXTS[lang]["subscribe"], reply_markup=keyboard)
-        return
 
     file = await update.message.voice.get_file()
     file_path = "voice.ogg"
@@ -176,19 +147,11 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     os.remove(file_path)
     os.remove(wav_path)
 
+# 🔹 TEXT → VOICE
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = get_lang(user.id)
     text = update.message.text
-
-    # Check subscription
-    subscribed = await is_user_subscribed(context.bot, user.id)
-    if not subscribed:
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(text=TEXTS[lang]["subscribe_button"], url=f"https://t.me/{CHANNEL_USERNAME.strip('@')}")
-        ]])
-        await update.message.reply_text(TEXTS[lang]["subscribe"], reply_markup=keyboard)
-        return
 
     if text in ["UZ 🇺🇿", "RU 🇷🇺", "EN 🇬🇧", "TR 🇹🇷"]:
         await set_language(update, context)
@@ -205,6 +168,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("😔 Matndan ovozga aylantirishda xatolik yuz berdi.")
         print("TTS Error:", e)
 
+# 🔹 /stats (faqat admin uchun)
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if user.id not in ADMIN_IDS:
@@ -214,13 +178,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_count = cursor.fetchone()[0]
     await update.message.reply_text(f"📊 Botdan foydalangan foydalanuvchilar soni: {user_count}")
 
+# 🧠 BOT START
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CommandHandler("help", help_command))
 app.add_handler(CommandHandler("language", language))
 app.add_handler(CommandHandler("stats", stats))
-app.add_handler(MessageHandler(filters.VOICE, handle_voice))
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_text))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
 
-print("Bot ishlashga tayyor!")
+print("🤖 Bot ishga tushdi...")
 app.run_polling()
