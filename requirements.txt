@@ -1,5 +1,5 @@
-python-telegram-bot==20.7
-gTTS==2.5.1
-pydub==0.25.1
-SpeechRecognition==3.10.1
-setuptools==68.2.2
+pytelegrambotapi==4.12.0
+requests==2.31.0
+python-dotenv==1.0.0
+clarifai==2.7.2
+gunicorn==20.1.0
